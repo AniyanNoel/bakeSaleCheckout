@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { can, ROLE_LABELS } from "@/lib/permissions";
+import { SignOutButton } from "@/components/sign-out";
 import { logoutAction } from "../(public)/actions";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const actor = await requireUser();
   const links = [
     { href: "/events", label: "Events", show: true },
+    { href: "/ious", label: "IOUs", show: can(actor.role, "settleIous") },
+    { href: "/members", label: "Members", show: can(actor.role, "manageMembers") },
     { href: "/users", label: "Users", show: can(actor.role, "manageUsers") },
     { href: "/audit", label: "Audit log", show: can(actor.role, "viewAudit") },
   ].filter((l) => l.show);
@@ -28,9 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Link href="/account" className="text-stone-700 hover:text-stone-950">
               {actor.name} <span className="text-stone-400">· {ROLE_LABELS[actor.role]}</span>
             </Link>
-            <form action={logoutAction}>
-              <button className="text-stone-500 hover:text-stone-900">Sign out</button>
-            </form>
+            <SignOutButton action={logoutAction} />
           </div>
         </div>
       </header>

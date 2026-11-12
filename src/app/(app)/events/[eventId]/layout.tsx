@@ -12,7 +12,14 @@ export default async function EventLayout({ children, params }: LayoutProps<"/ev
   const ev = await loadEvent(eventId);
   const base = `/events/${ev.id}`;
   const admin = can(actor.role, "manageItems");
+  const cashier = can(actor.role, "checkout");
   const links = [
+    ...(cashier
+      ? [
+          { href: `${base}/checkout`, label: "Checkout" },
+          { href: `${base}/transactions`, label: "Sales" },
+        ]
+      : []),
     { href: base, label: "Overview", exact: true },
     { href: `${base}/items`, label: "Items" },
     ...(admin

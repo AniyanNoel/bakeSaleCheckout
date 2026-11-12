@@ -1,9 +1,10 @@
 # Youth Bake Sale
 
 Web app for running the church youth bake sale: items and codes, volunteer signups, checkout, payments and IOUs.
-This is **phase 1 (Foundation)** from the design doc: accounts, roles, audit log, events, stations, items with codes,
-importing last year's Google Sheet, volunteer signups, and printable bring lists and price sheets.
-Checkout, payments and IOUs come in phase 2.
+Built so far: **phase 1 (Foundation)** from the design doc (accounts, roles, audit log, events, stations, items with
+codes, importing last year's Google Sheet, volunteer signups, printable bring lists and price sheets) and **phase 2
+(Checkout and payments)**: the checkout screen, offline sales, voids, refunds, write-offs, IOUs and members.
+The dashboard, exports and end-of-day reconciliation come in phase 3.
 
 ## Running it locally
 
@@ -43,6 +44,29 @@ They wipe it on every run.
 - **Logins:** passwords are hashed with bcrypt; 5 wrong tries locks the account for 5 minutes; a session lasts 14 hours.
   Changing someone's role, deactivating them or resetting their password signs them out everywhere.
 
+### Checkout
+
+Open an event and choose **Checkout** (the event must be open). It works with only a keyboard:
+
+1. Type an account number and press Enter, or press Enter on an empty box for a walk-up customer. An unknown account
+   number asks for a name and adds the member as "added at checkout" for an admin to confirm.
+2. Type item codes: `A01`, `a5 2` or `A01x3` for a quantity. Press Enter on an empty box to go to payment.
+3. Choose Cash, Venmo or Check (you can split). Extra money is change (cash only) or a donation. Paying less than the
+   total leaves an IOU on the member's account; walk-ups must pay in full. Ctrl+Enter completes the sale.
+
+- **Prices are snapshotted.** A sale keeps the price, name and code it was rung up with.
+- **Nothing is blocked at the table that can be fixed later.** A wrong price, a sold-out item, a possible duplicate
+  sale or a new member is saved with a flag that admins see on the Sales page.
+- **Wi-Fi drops are fine.** Each sale is saved on the device first, then sent. The page shows "N sales waiting to send"
+  and keeps trying. Once the checkout page has been opened online it also reopens with no connection.
+  Every sale has its own id, so a sale sent twice (double-click, retry) is only recorded once.
+- **Venmo and checks are "pending"** until an admin confirms them on the **IOUs** page. A bounced check is owed again.
+- **Corrections never edit a sale.** Voids, refunds and write-offs are new records with a reason. A cashier can void
+  their own sale for 15 minutes; after that only an admin can.
+- **IOUs** are worked out from sales, payments and corrections, never typed in. Admins record payments on the
+  member's page, applied to the oldest unpaid sale first.
+- **Contact details** (phone, email) are admin-only and can only be saved when the member agreed to be contacted.
+
 ### Importing last year's sheet
 
 In Google Sheets choose **File > Download > Microsoft Excel (.xlsx)** and upload it on the event's **Import** page.
@@ -62,9 +86,11 @@ Any tab with an "Item" column is read. You see a preview first and nothing is sa
 | Events, stations, items, prices, import | Yes | | |
 | Volunteer signups, bring list | Yes | | |
 | View items and price sheet | Yes | Yes | Yes |
+| Checkout, see sales | Yes | Yes | |
+| Void own sale within 15 minutes | Yes | Yes | |
+| Void any sale, refund, write off | Yes | | |
+| IOUs, confirm Venmo and checks, members | Yes | | |
 | Users and audit log | Yes | | |
-
-Checkout and payment permissions arrive with phase 2.
 
 ## Tech
 

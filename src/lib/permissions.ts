@@ -13,6 +13,19 @@ const MATRIX = {
   viewAudit: ["admin"],
   viewVolunteerContacts: ["admin"],
   viewItems: ["admin", "cashier", "volunteer"],
+  // Phase 2
+  checkout: ["admin", "cashier"],
+  lookupMembers: ["admin", "cashier"],
+  viewTransactions: ["admin", "cashier"],
+  /** Cashiers may void only their own sale, within VOID_WINDOW_MINUTES. */
+  voidOwnRecent: ["admin", "cashier"],
+  voidAny: ["admin"],
+  refund: ["admin"],
+  writeOff: ["admin"],
+  settleIous: ["admin"],
+  clearPayments: ["admin"],
+  manageMembers: ["admin"],
+  miscLine: ["admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof MATRIX;
