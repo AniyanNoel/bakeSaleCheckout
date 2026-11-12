@@ -50,7 +50,7 @@ describe("item codes", () => {
 describe("volunteer cells", () => {
   it("reads the 'Name (qty)' format the sheet asks for", () => {
     expect(parseVolunteerCell("Anna (3)")).toEqual({ raw: "Anna (3)", name: "Anna", qty: 3 });
-    expect(parseVolunteerCell("Ben Thomas (2 pizzas)")?.qty).toBe(2);
+    expect(parseVolunteerCell("Test Baker (2 pizzas)")?.qty).toBe(2);
     expect(parseVolunteerCell("Cara - 12")).toMatchObject({ name: "Cara", qty: 12 });
     expect(parseVolunteerCell("Dev x4")).toMatchObject({ name: "Dev", qty: 4 });
   });

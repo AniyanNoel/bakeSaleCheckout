@@ -40,3 +40,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 !.env.example
+
+# local data: never commit databases, dumps or real sheets/exports
+/pgdata/
+*.dump
+*.sql.gz
+*.sqlite
+/data/
+/uploads/
+/exports/
+*.xlsx
+!tests/**/*.xlsx
