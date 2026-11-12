@@ -1,7 +1,7 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { DbLike } from "@/db";
-import { items, signups, stations, type Item, type Station } from "@/db/schema";
+import { items, stations, type Item, type Station } from "@/db/schema";
 import { formatCode, isValidCode, nextCode, normalizeCode, UNASSIGNED_PREFIX } from "../codes";
 import { UserError, isUniqueViolation } from "../errors";
 import { parseDollarsToCents } from "../money";
@@ -59,25 +59,17 @@ function friendlyUnique(err: unknown): never {
   throw err;
 }
 
-export type ItemRow = Item & { station: Station | null; committedQty: number; signupCount: number; unknownSignupQty: number };
+export type ItemRow = Item & { station: Station | null };
 
-/** Items with their station and the volunteer totals (computed, never stored). */
+/** Items with their station, in code order. */
 export async function listItems(db: DbLike, eventId: number): Promise<ItemRow[]> {
   const rows = await db
-    .select({
-      item: items,
-      station: stations,
-      committedQty: sql<number>`coalesce(sum(${signups.committedQty}), 0)::int`,
-      signupCount: sql<number>`count(${signups.id})::int`,
-      unknownSignupQty: sql<number>`count(${signups.id}) filter (where ${signups.committedQty} is null)::int`,
-    })
+    .select({ item: items, station: stations })
     .from(items)
     .leftJoin(stations, eq(stations.id, items.stationId))
-    .leftJoin(signups, eq(signups.itemId, items.id))
     .where(eq(items.eventId, eventId))
-    .groupBy(items.id, stations.id)
     .orderBy(asc(items.code));
-  return rows.map((r) => ({ ...r.item, station: r.station, committedQty: r.committedQty, signupCount: r.signupCount, unknownSignupQty: r.unknownSignupQty }));
+  return rows.map((r) => ({ ...r.item, station: r.station }));
 }
 
 export async function getItem(db: DbLike, itemId: number): Promise<Item | null> {
@@ -97,7 +89,7 @@ export function itemWarnings(it: Pick<Item, "unitPriceCents" | "stationId" | "ac
 async function stationFor(tx: DbLike, eventId: number, stationId: number | null): Promise<Station | null> {
   if (stationId === null) return null;
   const [s] = await tx.select().from(stations).where(and(eq(stations.id, stationId), eq(stations.eventId, eventId)));
-  if (!s) throw new UserError("That station isn't part of this event.");
+  if (!s) throw new UserError("That table isn't part of this event.");
   return s;
 }
 
@@ -202,9 +194,8 @@ export async function deleteItem(db: DbLike, actor: Actor, itemId: number): Prom
     if (!before) return;
     const ev = await lockEditableEvent(tx, before.eventId);
     if (codesAreLocked(ev)) throw new UserError("The sale is open, so items can't be removed. Mark it inactive instead.");
-    const removedSignups = await tx.delete(signups).where(eq(signups.itemId, itemId)).returning();
     await tx.delete(items).where(eq(items.id, itemId));
-    await writeAudit(tx, actor, { action: "item.delete", table: "items", rowId: itemId, eventId: ev.id, before: { ...before, signups: removedSignups } });
+    await writeAudit(tx, actor, { action: "item.delete", table: "items", rowId: itemId, eventId: ev.id, before });
   });
 }
 

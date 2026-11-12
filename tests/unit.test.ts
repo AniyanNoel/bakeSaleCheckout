@@ -126,12 +126,10 @@ describe("import preview from the 2025 layout", () => {
 });
 
 describe("permissions", () => {
-  it("only lets admins manage the catalog and users", () => {
+  it("lets the signed-in cashier account do everything, and nothing else in", () => {
     expect(can("admin", "manageItems")).toBe(true);
+    expect(can("admin", "checkout")).toBe(true);
     expect(can("cashier", "manageItems")).toBe(false);
-    expect(can("volunteer", "manageUsers")).toBe(false);
-    expect(can("volunteer", "viewItems")).toBe(true);
-    expect(can("cashier", "viewVolunteerContacts")).toBe(false);
   });
 });
 

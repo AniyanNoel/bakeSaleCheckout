@@ -1,13 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import type { DbLike } from "@/db";
-import { items, signups, stations } from "@/db/schema";
+import { items, stations } from "@/db/schema";
 import { nextCode, UNASSIGNED_PREFIX } from "../codes";
 import { UserError } from "../errors";
 import { normalizeName, pickQuantity, type ImportPreview, type QuantityChoice } from "../import/parse";
 import { assertCan, type Actor } from "../permissions";
 import { writeAudit } from "./audit";
 import { lockEditableEvent } from "./events";
-import { findOrCreateVolunteer } from "./signups";
 
 export type ImportOptions = {
   quantity: QuantityChoice;
@@ -15,13 +14,11 @@ export type ImportOptions = {
   stationId: number | null;
   /** Item keys (normalised names) the admin unticked in the preview. */
   skipKeys?: string[];
-  importVolunteers: boolean;
 };
 
 export type ImportResult = {
   created: { code: string; name: string }[];
   skippedExisting: string[];
-  signupsCreated: number;
 };
 
 /**
@@ -44,7 +41,7 @@ export async function applyImport(
     let prefix = UNASSIGNED_PREFIX;
     if (options.stationId !== null) {
       const [s] = await tx.select().from(stations).where(and(eq(stations.id, options.stationId), eq(stations.eventId, eventId)));
-      if (!s) throw new UserError("That station isn't part of this event.");
+      if (!s) throw new UserError("That table isn't part of this event.");
       prefix = s.codePrefix;
     }
     const existing = await tx.select({ code: items.code, name: items.name }).from(items).where(eq(items.eventId, eventId));
@@ -52,7 +49,7 @@ export async function applyImport(
     const existingNames = new Set(existing.map((e) => normalizeName(e.name)));
     const skip = new Set(options.skipKeys ?? []);
 
-    const result: ImportResult = { created: [], skippedExisting: [], signupsCreated: 0 };
+    const result: ImportResult = { created: [], skippedExisting: [] };
     for (const row of preview.items) {
       if (skip.has(row.key)) continue;
       if (existingNames.has(row.key)) {
@@ -77,24 +74,13 @@ export async function applyImport(
       result.created.push({ code, name: row.name });
       await writeAudit(tx, actor, { action: "item.import", table: "items", rowId: it.id, eventId, after: it });
 
-      if (options.importVolunteers) {
-        for (const v of row.volunteers) {
-          const vol = await findOrCreateVolunteer(tx, v.name);
-          const [s] = await tx
-            .insert(signups)
-            .values({ itemId: it.id, volunteerId: vol.id, committedQty: v.qty, note: v.qty === null ? `Imported as "${v.raw}"` : null })
-            .returning();
-          result.signupsCreated++;
-          await writeAudit(tx, actor, { action: "signup.import", table: "signups", rowId: s.id, eventId, after: s });
-        }
-      }
     }
     await writeAudit(tx, actor, {
       action: "event.import_summary",
       table: "events",
       rowId: eventId,
       eventId,
-      after: { options, created: result.created.length, skippedExisting: result.skippedExisting, signups: result.signupsCreated },
+      after: { options, created: result.created.length, skippedExisting: result.skippedExisting },
     });
     return result;
   });

@@ -38,18 +38,20 @@ export async function getEvent(db: DbLike, id: number): Promise<Event | null> {
 export async function lockEditableEvent(tx: DbLike, eventId: number): Promise<Event> {
   const [e] = await tx.select().from(events).where(eq(events.id, eventId)).for("update");
   if (!e) throw new UserError("That event no longer exists.");
-  if (e.status === "closed") throw new UserError(`${e.name} is closed, so it can't be changed. Reopen it first.`);
   return e;
 }
 
-/** Codes stay fixed once the sale is open, so slips and price sheets stay correct. */
-export function codesAreLocked(e: Pick<Event, "status">): boolean {
-  return e.status !== "draft";
+/**
+ * Codes can always be changed: one person runs the sale and reprints the code
+ * sheet if needed. Past checkouts keep the code they were sold under.
+ */
+export function codesAreLocked(_e: Pick<Event, "status">): boolean {
+  return false;
 }
 
 /**
  * Create an event. With copyFromEventId, its stations and items come along
- * (same codes, names, prices and units; stock counts and signups start empty).
+ * (same codes, names, prices and units; stock counts start empty).
  */
 export async function createEvent(
   db: DbLike,

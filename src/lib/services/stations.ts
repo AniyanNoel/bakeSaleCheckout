@@ -23,8 +23,8 @@ const stationInput = z.object({
 
 
 function friendlyUnique(err: unknown): never {
-  if (isUniqueViolation(err, "stations_event_prefix_key")) throw new UserError("Another station already uses that code letter.");
-  if (isUniqueViolation(err, "stations_event_name_key")) throw new UserError("Another station already has that name.");
+  if (isUniqueViolation(err, "stations_event_prefix_key")) throw new UserError("Another table already uses that letter.");
+  if (isUniqueViolation(err, "stations_event_name_key")) throw new UserError("Another table already has that name.");
   throw err;
 }
 
@@ -59,7 +59,7 @@ export async function updateStation(db: DbLike, actor: Actor, stationId: number,
   try {
     return await db.transaction(async (tx) => {
       const [before] = await tx.select().from(stations).where(eq(stations.id, stationId));
-      if (!before) throw new UserError("That station no longer exists.");
+      if (!before) throw new UserError("That table no longer exists.");
       const ev = await lockEditableEvent(tx, before.eventId);
       const prefix = data.codePrefix || before.codePrefix;
       if (prefix !== before.codePrefix && codesAreLocked(ev)) {

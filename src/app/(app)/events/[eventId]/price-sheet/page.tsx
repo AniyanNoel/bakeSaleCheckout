@@ -7,11 +7,11 @@ import { listStations } from "@/lib/services/stations";
 import { PrintButton } from "@/components/forms";
 import { Card, Notice, PageHeader } from "@/components/ui";
 
-export const metadata = { title: "Price sheet" };
+export const metadata = { title: "Code sheet" };
 
 /**
- * A code list per station, so station helpers can write codes on slips.
- * Printing puts each station on its own page.
+ * A code list per table, so the people at each table can write codes on slips.
+ * Printing puts each table on its own page.
  */
 export default async function PriceSheetPage({ params }: PageProps<"/events/[eventId]/price-sheet">) {
   const { eventId } = await params;
@@ -22,18 +22,13 @@ export default async function PriceSheetPage({ params }: PageProps<"/events/[eve
   const active = items.filter((i) => i.active);
   const groups = [
     ...stations.map((s) => ({ key: String(s.id), title: `${s.codePrefix} · ${s.name}`, items: active.filter((i) => i.stationId === s.id) })),
-    { key: "none", title: "No station yet", items: active.filter((i) => i.stationId === null) },
+    { key: "none", title: "No table yet", items: active.filter((i) => i.stationId === null) },
   ].filter((g) => g.items.length);
   const missingPrice = active.some((i) => i.unitPriceCents === null);
 
   return (
     <>
-      <PageHeader title="Price sheet" subtitle="Active items only, grouped by station." actions={<PrintButton />} />
-      {ev.status === "draft" && (
-        <div className="mb-4 print:hidden">
-          <Notice tone="blue">Codes can still change until the sale opens. Print the final copy after opening the sale.</Notice>
-        </div>
-      )}
+      <PageHeader title="Code sheet" subtitle="Print one page per table so the people at each table can write codes on slips." actions={<PrintButton />} />
       {missingPrice && (
         <div className="mb-4 print:hidden">
           <Notice>Some items have no price yet and show as —.</Notice>

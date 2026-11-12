@@ -1,14 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
-import { auditLog, items, signups, users } from "@/db/schema";
+import { auditLog, items, users } from "@/db/schema";
 import { buildImportPreview } from "@/lib/import/parse";
 import type { Actor } from "@/lib/permissions";
-import { createEvent, setEventStatus, updateEvent } from "@/lib/services/events";
+import { createEvent } from "@/lib/services/events";
 import { applyImport } from "@/lib/services/import";
-import { createItem, deleteItem, listItems, renumberCodes, updateItem } from "@/lib/services/items";
-import { createStation, deleteStation } from "@/lib/services/stations";
-import { addSignup, bringList, updateSignup } from "@/lib/services/signups";
+import { createItem, listItems, renumberCodes, updateItem } from "@/lib/services/items";
+import { createStation } from "@/lib/services/stations";
 import {
   createFirstAdmin,
   createSession,
@@ -122,23 +121,12 @@ describe("events, stations and items", () => {
     expect(codes).toEqual({ Brownies: "A01", Cupcakes: "A02", Puffs: "B01", Mystery: "B02" });
   });
 
-  it("locks codes and deletion once the sale is open, but prices can still change", async () => {
-    await setEventStatus(db, admin, eventId, "open");
+  it("lets codes and prices change at any time", async () => {
     const brownies = (await listItems(db, eventId)).find((i) => i.name === "Brownies")!;
-    await expect(updateItem(db, admin, brownies.id, { ...brownies, code: "Z09", price: "3" })).rejects.toThrow(/codes can't change/);
-    await expect(deleteItem(db, admin, brownies.id)).rejects.toThrow(/inactive instead/);
-    await expect(renumberCodes(db, admin, eventId)).rejects.toThrow(/codes can't change/);
-    await expect(deleteStation(db, admin, brownies.stationId!)).rejects.toThrow(/can't be removed/);
-    const updated = await updateItem(db, admin, brownies.id, { ...brownies, code: brownies.code, price: "3.50" });
-    expect(updated.unitPriceCents).toBe(350);
-    expect(updated.code).toBe("A01");
-    await expect(setEventStatus(db, admin, eventId, "draft")).rejects.toThrow(/can't be changed/);
-  });
-
-  it("makes a closed event read-only", async () => {
-    await setEventStatus(db, admin, eventId, "closed");
-    await expect(createItem(db, admin, eventId, { name: "Late", price: "1" })).rejects.toThrow(/closed/);
-    await expect(updateEvent(db, admin, eventId, { name: "Renamed" })).rejects.toThrow(/closed/);
+    const moved = await updateItem(db, admin, brownies.id, { ...brownies, code: "A09", price: "3.50" });
+    expect([moved.code, moved.unitPriceCents]).toEqual(["A09", 350]);
+    const back = await updateItem(db, admin, brownies.id, { ...brownies, code: "A01", price: "3.50" });
+    expect(back.code).toBe("A01");
   });
 
   it("copies last year's catalog into a new event with the same codes", async () => {
@@ -156,10 +144,10 @@ describe("events, stations and items", () => {
   });
 });
 
-describe("importing the 2025 sheet and volunteer signups", () => {
+describe("importing the 2025 sheet", () => {
   let eventId: number;
 
-  it("imports items, prices and signups, and is safe to re-run", async () => {
+  it("imports items and prices, and is safe to re-run", async () => {
     const ev = await createEvent(db, admin, { name: "Import Test" });
     eventId = ev.id;
     const station = await createStation(db, admin, eventId, { name: "Main", codePrefix: "M" });
@@ -167,12 +155,10 @@ describe("importing the 2025 sheet and volunteer signups", () => {
     const res = await applyImport(db, admin, eventId, preview, {
       quantity: { kind: "source", source: "Finance · Quantity" },
       stationId: station.id,
-      importVolunteers: true,
       skipKeys: ["soda"],
     });
     expect(res.created).toHaveLength(18);
     expect(res.created[0]).toEqual({ code: "M01", name: "Achar (Pickle)" });
-    expect(res.signupsCreated).toBe(2);
 
     const list = await listItems(db, eventId);
     const cupcakes = list.find((i) => i.name === "Cupcakes")!;
@@ -180,43 +166,11 @@ describe("importing the 2025 sheet and volunteer signups", () => {
     expect(cupcakes.unitPriceCents).toBe(300);
     expect(list.find((i) => i.name === "Vattayappam")!.unitPriceCents).toBeNull();
     expect(list.find((i) => i.name === "Vattayappam")!.importNote).toMatch(/blank/);
-    const pizza = list.find((i) => i.name === "Pizza (Pies)")!;
-    expect(pizza.committedQty).toBe(3);
-    expect(pizza.unknownSignupQty).toBe(1);
 
-    const again = await applyImport(db, admin, eventId, preview, { quantity: { kind: "none" }, stationId: null, importVolunteers: true });
+    const again = await applyImport(db, admin, eventId, preview, { quantity: { kind: "none" }, stationId: null });
     expect(again.created.map((c) => c.name)).toEqual(["Soda"]);
     expect(again.skippedExisting).toHaveLength(18);
     expect(again.created[0].code).toBe("U01");
-  });
-
-  it("supports several volunteers per item and large quantities only when ticked", async () => {
-    const list = await listItems(db, eventId);
-    const puffs = list.find((i) => i.name === "Puffs")!;
-    await addSignup(db, admin, puffs.id, { volunteerName: "Anna", qty: "10" });
-    await addSignup(db, admin, puffs.id, { volunteerName: "Ben", qty: 5 });
-    await addSignup(db, admin, puffs.id, { volunteerName: "  anna ", qty: 2 }); // same Anna, second batch
-    await expect(addSignup(db, admin, puffs.id, { volunteerName: "Cara", qty: 150 })).rejects.toThrow(/large quantity/);
-    await addSignup(db, admin, puffs.id, { volunteerName: "Cara", qty: 150, allowLarge: true });
-    await expect(addSignup(db, admin, puffs.id, { volunteerName: "Dan", qty: 0 })).rejects.toThrow(/1 or more/);
-    await expect(addSignup(db, cashier, puffs.id, { volunteerName: "Eve", qty: 1 })).rejects.toThrow(/permission/);
-
-    const after = (await listItems(db, eventId)).find((i) => i.name === "Puffs")!;
-    expect(after.committedQty).toBe(167);
-    expect(after.signupCount).toBe(4);
-
-    const bring = await bringList(db, eventId);
-    const anna = bring.find((b) => b.volunteerName === "Anna")!;
-    expect(anna.lines.map((l) => l.qty)).toEqual([10, 2]);
-  });
-
-  it("fills in an unknown imported quantity later", async () => {
-    const pizza = (await listItems(db, eventId)).find((i) => i.name === "Pizza (Pies)")!;
-    const [unknown] = await db.select().from(signups).where(eq(signups.itemId, pizza.id)).then((r) => r.filter((s) => s.committedQty === null));
-    await updateSignup(db, admin, unknown.id, { qty: 2 });
-    const after = (await listItems(db, eventId)).find((i) => i.name === "Pizza (Pies)")!;
-    expect(after.committedQty).toBe(5);
-    expect(after.unknownSignupQty).toBe(0);
   });
 
   it("records an audit row for every change", async () => {
@@ -224,7 +178,6 @@ describe("importing the 2025 sheet and volunteer signups", () => {
     const actions = rows.map((r) => r.action);
     expect(actions.filter((a) => a === "item.import")).toHaveLength(19);
     expect(actions).toContain("event.import_summary");
-    expect(actions).toContain("signup.update");
     expect(rows.every((r) => r.userId === admin.id)).toBe(true);
   });
 

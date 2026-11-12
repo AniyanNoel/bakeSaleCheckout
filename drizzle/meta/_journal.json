@@ -15,6 +15,20 @@
       "when": 1794449838692,
       "tag": "0001_checkout",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794454334778,
+      "tag": "0002_simplify",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794454345634,
+      "tag": "0003_checkouts",
+      "breakpoints": true
     }
   ]
 }

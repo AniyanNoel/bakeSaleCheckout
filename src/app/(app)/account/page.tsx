@@ -1,5 +1,4 @@
 import { requireUser } from "@/lib/auth";
-import { ROLE_LABELS } from "@/lib/permissions";
 import { MIN_PASSWORD_LENGTH } from "@/lib/services/users";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, Field, Input, PageHeader } from "@/components/ui";
@@ -11,7 +10,7 @@ export default async function AccountPage() {
   const actor = await requireUser();
   return (
     <>
-      <PageHeader title="Your account" subtitle={`${actor.name} · ${ROLE_LABELS[actor.role]}`} />
+      <PageHeader title="Your account" subtitle={actor.name} />
       <Card title="Change password" className="max-w-md">
         <ActionForm action={changePasswordAction} className="space-y-4">
           <Field label="Current password">

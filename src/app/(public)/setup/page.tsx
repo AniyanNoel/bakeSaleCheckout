@@ -14,7 +14,7 @@ export default async function SetupPage() {
   await connection(); // always check the database at request time, never at build time
   if ((await countUsers(getDb())) > 0) redirect("/login");
   return (
-    <AuthShell title="First-time setup" subtitle="Create the first admin account. You can add cashiers and other admins after.">
+    <AuthShell title="First-time setup" subtitle="Create the login for whoever runs checkout.">
       <ActionForm action={setupAction} className="space-y-4">
         <Field label="Your name">
           <Input name="name" required autoFocus />
@@ -29,7 +29,7 @@ export default async function SetupPage() {
           <Input name="password2" type="password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} required />
         </Field>
         <SubmitButton className="w-full" pendingText="Creating…">
-          Create admin account
+          Create login
         </SubmitButton>
       </ActionForm>
     </AuthShell>

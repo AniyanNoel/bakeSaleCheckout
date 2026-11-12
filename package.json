@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "reset-password": "tsx scripts/reset-password.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

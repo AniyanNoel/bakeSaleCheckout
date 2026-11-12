@@ -16,16 +16,16 @@ export type OutboxEntry = {
   status: OutboxStatus;
   attempts: number;
   lastError?: string;
-  summary: { customer: string; totalCents: number; itemCount: number };
+  summary: { customer: string; totalCents: number; itemCount: number; paid: boolean };
 };
 
 export type SentSale = {
   clientId: string;
   id: number;
   customerName: string;
+  accountNumber: string | null;
   totalCents: number;
-  balanceCents: number;
-  flags: string[];
+  paid: boolean;
   sentAt: string;
 };
 
@@ -73,7 +73,7 @@ export const deviceCache = {
   clear: () => run(CACHE, "readwrite", (s) => s.clear()),
 };
 
-/** Remove cached member names from this device (on sign-out). Unsent sales stay. */
+/** Remove cached names from this device (on sign-out). Unsent sales stay. */
 export async function clearDeviceCache(): Promise<void> {
   try {
     await deviceCache.clear();
@@ -89,7 +89,7 @@ export type SendResult = { ok: true; sale: SentSale } | { ok: false; retry: bool
 export async function sendSale(entry: OutboxEntry): Promise<SendResult> {
   let res: Response;
   try {
-    res = await fetch("/api/sales", {
+    res = await fetch("/api/checkouts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(entry.payload),
@@ -99,7 +99,7 @@ export async function sendSale(entry: OutboxEntry): Promise<SendResult> {
   } catch {
     return { ok: false, retry: true, error: "No connection. Will send when the Wi-Fi is back." };
   }
-  let body: { error?: string; id?: number; customerName?: string; totalCents?: number; balanceCents?: number; flags?: string[] } = {};
+  let body: { error?: string; id?: number; customerName?: string; accountNumber?: string | null; totalCents?: number; paid?: boolean } = {};
   try {
     body = await res.json();
   } catch {
@@ -113,14 +113,14 @@ export async function sendSale(entry: OutboxEntry): Promise<SendResult> {
         clientId: entry.clientId,
         id: body.id,
         customerName: body.customerName ?? entry.summary.customer,
+        accountNumber: body.accountNumber ?? null,
         totalCents: body.totalCents ?? entry.summary.totalCents,
-        balanceCents: body.balanceCents ?? 0,
-        flags: body.flags ?? [],
+        paid: body.paid ?? entry.summary.paid,
         sentAt: new Date().toISOString(),
       },
     };
   }
   if (res.status === 401) return { ok: false, retry: false, signedOut: true, error: body.error ?? "Signed out." };
   if (res.status >= 500) return { ok: false, retry: true, error: body.error ?? "Server problem. Will try again." };
-  return { ok: false, retry: false, error: body.error ?? `The server refused this sale (${res.status}).` };
+  return { ok: false, retry: false, error: body.error ?? `The server refused this checkout (${res.status}).` };
 }

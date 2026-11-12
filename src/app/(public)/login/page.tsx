@@ -13,7 +13,7 @@ export default async function LoginPage() {
   if (await getCurrentUser()) redirect("/events");
   if ((await countUsers(getDb())) === 0) redirect("/setup");
   return (
-    <AuthShell title="Sign in" subtitle="Use the account an admin set up for you.">
+    <AuthShell title="Sign in" subtitle="Sign in to run checkout.">
       <ActionForm action={loginAction} className="space-y-4">
         <Field label="Email">
           <Input name="email" type="email" autoComplete="username" required autoFocus />
@@ -25,7 +25,7 @@ export default async function LoginPage() {
           Sign in
         </SubmitButton>
       </ActionForm>
-      <p className="mt-6 text-xs text-stone-500">Forgot your password? Ask an admin to reset it.</p>
+      <p className="mt-6 text-xs text-stone-500">Forgot your password? Run <code>npm run reset-password</code> on the computer that runs the app.</p>
     </AuthShell>
   );
 }

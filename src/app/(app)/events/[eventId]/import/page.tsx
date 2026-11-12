@@ -17,7 +17,7 @@ export default async function ImportPage({ params }: PageProps<"/events/[eventId
     <div className="max-w-5xl space-y-4">
       <div className="text-sm text-stone-600">
         <p>
-          Bring in items, prices and volunteer signups from last year&apos;s Google Sheet. In Google Sheets choose{" "}
+          Bring in items and prices from last year&apos;s Google Sheet. In Google Sheets choose{" "}
           <strong>File → Download → Microsoft Excel (.xlsx)</strong> so every tab comes along, then upload it here. A single tab
           saved as .csv works too.
         </p>

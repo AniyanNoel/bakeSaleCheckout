@@ -11,7 +11,6 @@ import { readSpreadsheet } from "@/lib/import/read-file";
 import { createEvent, setEventStatus, updateEvent } from "@/lib/services/events";
 import { applyImport, type ImportResult } from "@/lib/services/import";
 import { createItem, deleteItem, renumberCodes, setItemActive, updateItem } from "@/lib/services/items";
-import { addSignup, removeSignup, updateSignup } from "@/lib/services/signups";
 import { createStation, deleteStation, updateStation } from "@/lib/services/stations";
 
 // Every action re-checks who is signed in; the services check what they may do.
@@ -24,7 +23,7 @@ export async function createEventAction(_prev: ActionState, fd: FormData): Promi
     const ev = await createEvent(getDb(), actor, { name: str(fd, "name"), saleDate: str(fd, "saleDate") }, copyFrom ? Number(copyFrom) : null);
     id = ev.id;
   });
-  if (id) redirect(`/events/${id}`);
+  if (id) redirect(`/events/${id}/items`);
   return state;
 }
 
@@ -128,36 +127,6 @@ export async function renumberCodesAction(eventId: number, _prev: ActionState): 
   });
 }
 
-// --- Signups ----------------------------------------------------------------
-
-export async function addSignupAction(itemId: number, _prev: ActionState, fd: FormData): Promise<ActionState> {
-  const actor = await requireUser();
-  return run(async () => {
-    await addSignup(getDb(), actor, itemId, {
-      volunteerName: str(fd, "volunteerName"),
-      qty: str(fd, "qty"),
-      allowLarge: bool(fd, "allowLarge"),
-      note: str(fd, "note"),
-    });
-    return "Signup added.";
-  });
-}
-
-export async function updateSignupAction(signupId: number, _prev: ActionState, fd: FormData): Promise<ActionState> {
-  const actor = await requireUser();
-  return run(async () => {
-    await updateSignup(getDb(), actor, signupId, { qty: str(fd, "qty"), allowLarge: bool(fd, "allowLarge"), note: str(fd, "note") });
-  });
-}
-
-export async function removeSignupAction(signupId: number, _prev: ActionState): Promise<ActionState> {
-  const actor = await requireUser();
-  return run(async () => {
-    await removeSignup(getDb(), actor, signupId);
-    return "Signup removed.";
-  });
-}
-
 // --- Import -----------------------------------------------------------------
 
 export type PreviewState = { preview?: ImportPreview; fileName?: string; error?: string; result?: ImportResult } | null;
@@ -201,7 +170,6 @@ export async function applyImportAction(eventId: number, _prev: PreviewState, fd
       quantity,
       stationId: stationId ? Number(stationId) : null,
       skipKeys: fd.getAll("skip").map(String),
-      importVolunteers: bool(fd, "importVolunteers"),
     });
     return { ...parsed, result };
   } catch (err) {

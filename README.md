@@ -1,24 +1,50 @@
-# Youth Bake Sale
+# Bake Sale Checkout
 
-Web app for running the church youth bake sale: items and codes, volunteer signups, checkout, payments and IOUs.
-Built so far: **phase 1 (Foundation)** from the design doc (accounts, roles, audit log, events, stations, items with
-codes, importing last year's Google Sheet, volunteer signups, printable bring lists and price sheets) and **phase 2
-(Checkout and payments)**: the checkout screen, offline sales, voids, refunds, write-offs, IOUs and members.
-The dashboard, exports and end-of-day reconciliation come in phase 3.
+A simple checkout for church sales, like a supermarket register. One person (the cashier) signs in.
 
-## Running it locally
+1. **Before the sale:** add a table for each food station (Indian food = A, Sweets = B…) and its items with prices.
+   Each item gets a code (A01, A02, B01…). Print the **Code sheet** for the tables.
+2. **During the sale:** the people at each table write codes on the buyer's slip. At checkout you type the buyer's church
+   account number (the name fills in), then the codes from the slip. Pick Cash, Venmo or Check, and whether they paid.
+   Save, and the next customer is ready.
+3. **After the sale:** **Records** lists every checkout (name, account, items, total, form of payment, paid yes/no)
+   with totals. Mark people paid later, and download everything as an Excel file.
 
-You need Node.js 22 and a Postgres database (a free Neon or Supabase database works, or Postgres on your computer).
+## Running it on your computer
+
+You need [Node.js](https://nodejs.org) (the LTS version) and a Postgres database. A free [Neon](https://neon.tech)
+project works.
 
 ```bash
 npm install
-cp .env.example .env        # then set DATABASE_URL
-npm run db:migrate          # creates the tables
-npm run dev                 # http://localhost:3000
+cp .env.example .env        # then put your Neon connection string after DATABASE_URL=
+npm run db:migrate          # creates or updates the tables; run it again after every git pull
+npm run dev                 # open http://localhost:3000
 ```
 
-The first visit opens a one-time setup page to create the first admin. After that, admins add everyone else on the
-**Users** page.
+The first visit asks you to create the login. To change a forgotten password:
+
+```bash
+npm run reset-password -- you@example.com "a new password"
+```
+
+## Using it
+
+- **Items:** add tables, then items under them. Leave the code blank to get the next one (A01, A02…). Codes and prices
+  can change at any time. A saved checkout keeps the price and code it was sold with. "Renumber codes" tidies them up
+  before you print the code sheet.
+- **Import items:** upload last year's Google Sheet (File > Download > Microsoft Excel) to bring in item names and
+  prices.
+- **People:** the church directory. Load an Excel or CSV file with `Account` and `Name` columns (or `First name` and
+  `Last name`). Loading it again is safe. A new account number typed at checkout, with a name, is added here
+  automatically.
+- **Checkout** is keyboard-first: account number, Enter, item codes (`A1`, `A01`, `A1 3` for three), Enter on an empty
+  box, then Enter for Cash (arrow keys to Venmo or Check, or press 1, 2, 3), and Enter to save. Ctrl+Enter saves from anywhere.
+- **Wi-Fi drops are fine.** Each checkout is saved on the computer first, then sent. The page shows "waiting to send"
+  until it gets through. Once opened online, the checkout page also reopens with no connection. Sending the same checkout
+  twice (double-click, retry) only records it once.
+- **Records:** search by name or account number, show only "Not paid yet", edit a checkout to mark it paid or change the
+  payment, or delete one rung up by mistake. Every change is kept in the audit log table.
 
 ## Tests
 
@@ -26,74 +52,11 @@ The first visit opens a one-time setup page to create the first admin. After tha
 npm test
 ```
 
-Database tests need `TEST_DATABASE_URL` pointing at a separate, throwaway database whose name ends in `_test`.
-They wipe it on every run.
-
-## How things work
-
-- **Database is the source of truth.** All changes go through `src/lib/services/*`, which check permissions and
-  write an audit row in the same database transaction as the change.
-- **Money is integer cents** everywhere (`src/lib/money.ts`).
-- **Each year is its own event.** A new event can copy last year's stations and items (same codes and prices).
-- **Item codes** are the station letter plus a number (A01, B03). They can be renumbered while the event is a draft.
-  Opening the sale locks them so printed slips and price sheets stay correct. Prices can still change; completed sales
-  (phase 2) will keep the price they were sold at.
-- **Removing items:** allowed while the event is a draft. Once the sale is open, items are marked inactive instead.
-- **Closed events are read-only** until an admin reopens them.
-- **Signups:** any number of volunteers per item. 1 to 100 is normal; larger needs a "large quantity" tick.
-- **Logins:** passwords are hashed with bcrypt; 5 wrong tries locks the account for 5 minutes; a session lasts 14 hours.
-  Changing someone's role, deactivating them or resetting their password signs them out everywhere.
-
-### Checkout
-
-Open an event and choose **Checkout** (the event must be open). It works with only a keyboard:
-
-1. Type an account number and press Enter, or press Enter on an empty box for a walk-up customer. An unknown account
-   number asks for a name and adds the member as "added at checkout" for an admin to confirm.
-2. Type item codes: `A01`, `a5 2` or `A01x3` for a quantity. Press Enter on an empty box to go to payment.
-3. Choose Cash, Venmo or Check (you can split). Extra money is change (cash only) or a donation. Paying less than the
-   total leaves an IOU on the member's account; walk-ups must pay in full. Ctrl+Enter completes the sale.
-
-- **Prices are snapshotted.** A sale keeps the price, name and code it was rung up with.
-- **Nothing is blocked at the table that can be fixed later.** A wrong price, a sold-out item, a possible duplicate
-  sale or a new member is saved with a flag that admins see on the Sales page.
-- **Wi-Fi drops are fine.** Each sale is saved on the device first, then sent. The page shows "N sales waiting to send"
-  and keeps trying. Once the checkout page has been opened online it also reopens with no connection.
-  Every sale has its own id, so a sale sent twice (double-click, retry) is only recorded once.
-- **Venmo and checks are "pending"** until an admin confirms them on the **IOUs** page. A bounced check is owed again.
-- **Corrections never edit a sale.** Voids, refunds and write-offs are new records with a reason. A cashier can void
-  their own sale for 15 minutes; after that only an admin can.
-- **IOUs** are worked out from sales, payments and corrections, never typed in. Admins record payments on the
-  member's page, applied to the oldest unpaid sale first.
-- **Contact details** (phone, email) are admin-only and can only be saved when the member agreed to be contacted.
-
-### Importing last year's sheet
-
-In Google Sheets choose **File > Download > Microsoft Excel (.xlsx)** and upload it on the event's **Import** page.
-Any tab with an "Item" column is read. You see a preview first and nothing is saved until you confirm.
-
-- When tabs disagree on quantity (the 2025 Sign Up and Finance tabs do), you choose which one to use.
-- Blank or $0 prices are imported as-is and flagged, never guessed.
-- Volunteer cells like `Name (3)` become signups. A name with no number is kept with an unknown quantity and flagged.
-- A "Total" row ends a table, so side tables under it (like the 2025 pizza pricing notes) are not imported.
-- The IOU table on the Finance tab is never imported.
-- Items whose name already exists in the event are skipped, so importing twice is safe.
-
-## Roles
-
-| | Admin | Cashier | Volunteer |
-|---|---|---|---|
-| Events, stations, items, prices, import | Yes | | |
-| Volunteer signups, bring list | Yes | | |
-| View items and price sheet | Yes | Yes | Yes |
-| Checkout, see sales | Yes | Yes | |
-| Void own sale within 15 minutes | Yes | Yes | |
-| Void any sale, refund, write off | Yes | | |
-| IOUs, confirm Venmo and checks, members | Yes | | |
-| Users and audit log | Yes | | |
+Database tests need `TEST_DATABASE_URL` pointing at a separate, throwaway database whose name ends in `_test`. They wipe
+it on every run.
 
 ## Tech
 
-Next.js 16 (App Router, server actions), TypeScript, Tailwind CSS, Postgres with Drizzle ORM, Vitest.
-Schema changes: edit `src/db/schema.ts`, run `npm run db:generate`, commit the new file in `drizzle/`, then
-`npm run db:migrate`.
+Next.js 16 (App Router, server actions), TypeScript, Tailwind CSS, Postgres with Drizzle ORM, Vitest. Money is stored
+in integer cents. Schema changes: edit `src/db/schema.ts`, run `npm run db:generate`, commit the new file in `drizzle/`,
+then `npm run db:migrate`.
